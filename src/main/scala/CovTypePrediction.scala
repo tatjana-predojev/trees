@@ -1,3 +1,7 @@
+import ml.combust.bundle.BundleFile
+import ml.combust.bundle.serializer.SerializationFormat
+import ml.combust.mleap.spark.SparkSupport.SparkTransformerOps
+import org.apache.spark.ml.bundle.SparkBundleContext
 import org.apache.spark.ml.{Model, Pipeline, PipelineModel}
 import org.apache.spark.ml.classification.{DecisionTreeClassifier, RandomForestClassifier}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
@@ -6,6 +10,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.ml.feature.{VectorAssembler, VectorIndexer}
 import org.apache.spark.ml.linalg.Vector
 import org.apache.spark.ml.tuning.{ParamGridBuilder, TrainValidationSplit}
+import resource.managed
 
 object CovTypePrediction {
 
@@ -23,19 +28,25 @@ object CovTypePrediction {
     test.cache()
 
     // replace one-hot encoded columns with one categorical column
-    val wildernessCols = (0 until 4).map(i => s"Wilderness_Area_$i").toArray
+    val wildernessCols = (0 until 4).map(i => s"wilderness_area_$i").toArray
     val train1 = unencodeOneHot(train, wildernessCols, "wilderness")
-    val soilCols = (0 until 40).map(i => s"Soil_Type_$i").toArray
+    val soilCols = (0 until 40).map(i => s"soil_type_$i").toArray
     val train2 = unencodeOneHot(train1, soilCols, "soil")
     //train2.show()
     val test1 = unencodeOneHot(test, wildernessCols, "wilderness")
     val test2 = unencodeOneHot(test1, soilCols, "soil")
+    test2.show(10, truncate = false)
+    test2.printSchema()
 
     val pipelineDt = simpleDecisionTree(train2, test2)
     pipelineDt.write.overwrite().save("src/main/resources/pipeline-dt")
+    val destPipelineDir = "/home/tatjana/work/ml/spark/trees/src/main/resources"
+
+    serializePipeline(pipelineDt, train2, destPipelineDir, "simple-spark-dt-pipeline.zip")
 
     val pipelineRf = validatedRandomForest(train2, test2)
     pipelineRf.write.overwrite().save("src/main/resources/pipeline-rf")
+    serializePipeline(pipelineRf, train2, destPipelineDir, "spark-rf-pipeline.zip")
 
   }
 
@@ -47,25 +58,24 @@ object CovTypePrediction {
 
     // add header
     val colNames = Seq(
-      "Elevation", "Aspect", "Slope",
-      "Horizontal_Distance_To_Hydrology", "Vertical_Distance_To_Hydrology",
-      "Horizontal_Distance_To_Roadways",
-      "Hillshade_9am", "Hillshade_Noon", "Hillshade_3pm",
-      "Horizontal_Distance_To_Fire_Points"
+      "elevation", "aspect", "slope",
+      "hdh", "vdh", "hdr",
+      "hillshade_9am", "hillshade_noon", "hillshade_3pm",
+      "hdfp"
     ) ++ (
-      (0 until 4).map(i => s"Wilderness_Area_$i")
+      (0 until 4).map(i => s"wilderness_area_$i")
       ) ++ (
-      (0 until 40).map(i => s"Soil_Type_$i")
-      ) ++ Seq("Cover_Type")
+      (0 until 40).map(i => s"soil_type_$i")
+      ) ++ Seq("cover_type")
 
     dataNoHeader.toDF(colNames:_*).
-      withColumn("Cover_Type", col("Cover_Type").cast("double"))
+      withColumn("cover_type", col("cover_type").cast("double"))
   }
 
   def simpleDecisionTree(train: DataFrame, test: DataFrame): PipelineModel = {
 
     // data into format that classifier accepts
-    val inputCols = train.columns.filter(_ != "Cover_Type")
+    val inputCols = train.columns.filter(_ != "cover_type")
     val assembler = new VectorAssembler()
       .setInputCols(inputCols)
       .setOutputCol("featureVector")
@@ -77,7 +87,7 @@ object CovTypePrediction {
       .setOutputCol("indexedVector")
 
     val classifier = new DecisionTreeClassifier()
-      .setLabelCol("Cover_Type")
+      .setLabelCol("cover_type")
       .setFeaturesCol("indexedVector")
       .setPredictionCol("prediction")
       .setMaxBins(60)
@@ -87,10 +97,10 @@ object CovTypePrediction {
     val model = pipeline.fit(train)
 
     val predictions = model.transform(test)
-    //predictions.show()
+    predictions.show()
 
     val evaluator = new MulticlassClassificationEvaluator()
-      .setLabelCol("Cover_Type")
+      .setLabelCol("cover_type")
       .setPredictionCol("prediction")
     val accuracy = evaluator.setMetricName("accuracy").evaluate(predictions)
     val f1 = evaluator.setMetricName("f1").evaluate(predictions)
@@ -103,7 +113,7 @@ object CovTypePrediction {
 
   def validatedRandomForest(train: DataFrame, test: DataFrame): PipelineModel = {
 
-    val inputCols = train.columns.filter(_ != "Cover_Type")
+    val inputCols = train.columns.filter(_ != "cover_type")
     val assembler = new VectorAssembler()
       .setInputCols(inputCols)
       .setOutputCol("featureVector")
@@ -114,7 +124,7 @@ object CovTypePrediction {
       .setOutputCol("indexedVector")
 
     val classifier = new RandomForestClassifier()
-      .setLabelCol("Cover_Type")
+      .setLabelCol("cover_type")
       .setFeaturesCol("indexedVector")
       .setPredictionCol("prediction")
 
@@ -128,7 +138,7 @@ object CovTypePrediction {
       .build()
 
     val evaluator = new MulticlassClassificationEvaluator()
-      .setLabelCol("Cover_Type")
+      .setLabelCol("cover_type")
       .setPredictionCol("prediction")
       .setMetricName("accuracy")
 
@@ -162,6 +172,14 @@ object CovTypePrediction {
     assembler.transform(data)
       .drop(oneHotCols: _*)
       .withColumn(outputCol, unhotUDF(col(outputCol)))
+  }
+
+  def serializePipeline(pipeline: PipelineModel, data: DataFrame,
+                        destDir: String, pipelineName: String): Unit = {
+    val sbc = SparkBundleContext().withDataset(pipeline.transform(data))
+    for (bf <- managed(BundleFile(s"jar:file:$destDir/$pipelineName"))) {
+      pipeline.writeBundle.format(SerializationFormat.Json).save(bf)(sbc).get
+    }
   }
 
 }
