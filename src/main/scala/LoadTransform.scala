@@ -10,7 +10,7 @@ object LoadTransform extends App {
 
   // load the spark pipeline we saved after training
   val destPipelineDir = "/home/tatjana/work/ml/spark/trees/src/main/resources"
-  val bundle: Bundle[Transformer] = (for (bundleFile <- managed(BundleFile(s"jar:file:$destPipelineDir/simple-spark-dt-pipeline.zip")))
+  val bundle: Bundle[Transformer] = (for (bundleFile <- managed(BundleFile(s"jar:file:$destPipelineDir/spark-rf-pipeline.zip")))
     yield {
       bundleFile.loadMleapBundle().get
   }).opt.get
