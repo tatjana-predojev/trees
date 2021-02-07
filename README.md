@@ -1,6 +1,6 @@
 ## Decision trees
 
-This use case explores decision tree models in spark. Dataset consists of various soil and terrain features such as elevation, slope, hillshade, horizontal and vertical distances to hydrology, roadways etc. We use all these to try to predict the forest cover type which can be one of: Spruce/Fir, Lodgepole Pine, Ponderosa Pine, Cottonwood/Willow, Aspen, Douglas-fir, Krummholz (7 different cover types). In short, we have a classification problem with 7 possible classes. 
+This use case explores decision tree models in spark. Dataset consists of various soil and terrain features such as elevation, slope, hillshade, horizontal and vertical distances to hydrology, roadways etc. We use all these to try to predict the forest cover type which can be one of: Spruce/Fir, Lodgepole Pine, Ponderosa Pine, Cottonwood/Willow, Aspen, Douglas-fir, Krummholz (7 different cover types). In short, we have a classification problem with 7 possible classes. Last time I checked, dataset could be downloaded from [here](https://archive.ics.uci.edu/ml/machine-learning-databases/covtype/).
 
 ## Simple decision tree
 
