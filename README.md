@@ -40,4 +40,38 @@ We see that `elevation` is by far the most important feature.
 
 ## Random forest
 
-By using a simple decision tree model with default hyperparameters we already get high accuracy. Let us try to improve on that by trying out more powerful random forest model and add validation to select better hyperparameters. We start by replacing classifier with `RandomForestClassifier`. To define different hyperparameters to validate, we use `ParamGridBuilder`. Besides train and test data, we would need validation data and we select it with `TrainValidationSplit`. Finally, after the model is fit we select the one with best performance. 
+By using a simple decision tree model with default hyperparameters we already get high accuracy. Let us try to improve on that by trying out more powerful random forest model and add validation step to select better hyperparameters. We start by replacing classifier with `RandomForestClassifier`. To define different hyperparameters to validate, we use `ParamGridBuilder`. Besides train and test data, we would need validation data and we select it with `TrainValidationSplit`. Finally, after the model is fit we select the one with best performance. Here are all the hyperparameters
+```
+  rfc_f4a70e595514-cacheNodeIds: false,
+	rfc_f4a70e595514-checkpointInterval: 10,
+	rfc_f4a70e595514-featureSubsetStrategy: auto,
+	rfc_f4a70e595514-featuresCol: indexedVector,
+	rfc_f4a70e595514-impurity: entropy,
+	rfc_f4a70e595514-labelCol: cover_type,
+	rfc_f4a70e595514-maxBins: 200,
+	rfc_f4a70e595514-maxDepth: 20,
+	rfc_f4a70e595514-maxMemoryInMB: 256,
+	rfc_f4a70e595514-minInfoGain: 0.0,
+	rfc_f4a70e595514-minInstancesPerNode: 1,
+	rfc_f4a70e595514-numTrees: 20,
+	rfc_f4a70e595514-predictionCol: prediction,
+	rfc_f4a70e595514-probabilityCol: probability,
+	rfc_f4a70e595514-rawPredictionCol: rawPrediction,
+	rfc_f4a70e595514-seed: 207336481,
+	rfc_f4a70e595514-subsamplingRate: 1.0
+```
+With these settings we increase our validation accuracy to `0.95` and test accuracy `0.95`. Significant improvement. 
+
+## Deploying to production
+
+Spark model provides `transform` function to calculate predictions from input data. However, the latency involved and the cost of initiating spark session may be too expensive for production code. One way to solve this problem may be [mleap](https://github.com/combust/mleap). MLeap is an execution engine and serialization format whose goal is to help deploy spark models to production. MLeap runtime can be used to execute our pipeline and algorithm without dependenices on spark context, as can be seen in [`LoadTransform`](src/main/scala/LoadTransform.scala). Remember to serialize models into mleap bundle after fitting. A simple example for our forest cover type gives these results
+```
+1st example predicted cover type 3.0
+1st example cover type probabilities (0.0, 0.0, 0.0038461538461538464, 0.9919051878354204, 0.0, 0.0, 0.00424865831842576, 0.0)
+2nd example predicted cover type 6.0
+2nd example cover type probabilities (0.0, 0.0, 0.0, 0.1, 0.1, 0.0, 0.8, 0.0)
+```
+
+## Improvements and future work
+
+Would be nice to expose the `predict` function as a web service, using either [http4s](https://http4s.org/) or [akka-http](https://doc.akka.io/docs/akka-http/current/index.html). 
