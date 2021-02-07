@@ -3,7 +3,7 @@ import ml.combust.bundle.serializer.SerializationFormat
 import ml.combust.mleap.spark.SparkSupport.SparkTransformerOps
 import org.apache.spark.ml.bundle.SparkBundleContext
 import org.apache.spark.ml.{Model, Pipeline, PipelineModel}
-import org.apache.spark.ml.classification.{DecisionTreeClassifier, RandomForestClassifier}
+import org.apache.spark.ml.classification.{DecisionTreeClassificationModel, DecisionTreeClassifier, RandomForestClassifier}
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.sql.functions.{col, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
@@ -95,6 +95,11 @@ object CovTypePrediction {
     val pipeline = new Pipeline().setStages(Array(assembler, indexer, classifier))
 
     val model = pipeline.fit(train)
+    val treeModel = model.stages.last
+      .asInstanceOf[DecisionTreeClassificationModel]
+    println(treeModel.toDebugString)
+    treeModel.featureImportances.toArray.zip(inputCols).
+      sorted.reverse.foreach(println)
 
     val predictions = model.transform(test)
     predictions.show()
@@ -107,6 +112,8 @@ object CovTypePrediction {
     println("simple decision tree")
     println(s"accuracy = $accuracy")
     println(s"f1 score = $f1")
+    // accuracy = 0.7117204060178882
+    // f1 score = 0.7023220428663683
 
     model // return the fitted pipeline
   }
@@ -155,6 +162,8 @@ object CovTypePrediction {
     println("random forest")
     println(s"validation accuracy ${validatorModel.validationMetrics.max}")
     println(s"test accuracy ${evaluator.evaluate(bestModel.transform(test))}")
+//    validation accuracy 0.9518848157474866
+//    test accuracy 0.9522084699500455
 
     bestModel.asInstanceOf[PipelineModel]
   }
