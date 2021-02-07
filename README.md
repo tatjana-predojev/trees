@@ -42,7 +42,7 @@ We see that `elevation` is by far the most important feature.
 
 By using a simple decision tree model with default hyperparameters we already get high accuracy. Let us try to improve on that by trying out more powerful random forest model and add validation step to select better hyperparameters. We start by replacing classifier with `RandomForestClassifier`. To define different hyperparameters to validate, we use `ParamGridBuilder`. Besides train and test data, we would need validation data and we select it with `TrainValidationSplit`. Finally, after the model is fit we select the one with best performance. Here are all the hyperparameters
 ```
-  rfc_f4a70e595514-cacheNodeIds: false,
+  	rfc_f4a70e595514-cacheNodeIds: false,
 	rfc_f4a70e595514-checkpointInterval: 10,
 	rfc_f4a70e595514-featureSubsetStrategy: auto,
 	rfc_f4a70e595514-featuresCol: indexedVector,
